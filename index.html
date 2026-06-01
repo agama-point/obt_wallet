@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="build/css/ts_obt.css?v=20260601f" />
+  <link rel="stylesheet" href="build/css/ts_obt.css?v=20260601o" />
 </head>
 <body>
   <div class="card">
@@ -17,9 +17,9 @@
     </div>
     <!-- ══ ACTION TAB BAR ════════════════════════════════════════════════════ -->
     <div class="action-tab-bar" role="tablist" aria-label="Wallet actions">
+      <button class="action-tab-btn active" data-tab="receive" role="tab">Receive</button>
       <button class="action-tab-btn" data-tab="send"    role="tab">Send</button>
-      <button class="action-tab-btn" data-tab="balance" role="tab">Balance</button>
-      <button class="action-tab-btn" data-tab="receive" role="tab">Receive</button>
+      <button class="action-tab-btn" data-tab="about"   role="tab">About</button>
     </div>
 
     <!-- ── Send panel ──────────────────────────────────────────────────────── -->
@@ -30,11 +30,12 @@
       </p>
       <p class="label">
         Recipient address
+        <button class="preset-link" type="button" data-send-recipient="0a4c">0a4c</button>
         <button class="preset-link" type="button" data-send-recipient="7214">7214</button>
         <button class="preset-link" type="button" data-send-recipient="83ca">83ca</button>
       </p>
       <div class="send-input-row">
-        <input type="text" id="send-addr-in" placeholder="e.g. 83ca" maxlength="4" inputmode="text" autocapitalize="none" autocomplete="off" />
+        <input type="text" id="send-addr-in" placeholder="e.g. 83ca" maxlength="5" inputmode="text" autocapitalize="none" autocomplete="off" />
         <button class="icon-btn" id="send-qr-btn" title="Scan QR code">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
@@ -50,8 +51,9 @@
           <span class="label">Value</span>
           <input type="number" id="send-value-in" placeholder="3" min="1" inputmode="numeric" />
         </label>
-        <button class="action-btn" id="send-utxo-btn">GET UTXO</button>
+        <button class="action-btn soft-btn" id="send-utxo-btn">GET UTXO</button>
       </div>
+      <div id="send-balance" class="tx-balance-block compact-balance"></div>
       <div id="send-utxo-wrap" class="tx-table-wrap" style="display:none;">
         <div class="send-utxo-head">
           <p class="label">Unspent outputs</p>
@@ -76,33 +78,27 @@
       <p id="send-status" class="tx-status"></p>
     </section>
 
-    <!-- ── Balance panel ───────────────────────────────────────────────────── -->
-    <section class="tab-panel" id="ap-balance" role="tabpanel">
-      <p class="label">Address</p>
-      <p class="tx-addr-display">
-        <span class="coord-label">0x</span><span id="balance-addr" class="tx-addr-val">—</span>
-      </p>
-      <button class="action-btn" id="balance-get-btn">GET balance</button>
-      <p id="balance-status" class="tx-status"></p>
-      <div id="balance-block" class="tx-balance-block"></div>
-      <div id="balance-table-wrap" class="tx-table-wrap" style="display:none;">
-        <p class="label" style="margin-bottom:0.5rem;">Unspent outputs <span class="muted">(first 5)</span></p>
-        <div class="table-scroll">
-          <table class="utxo-table">
-            <thead><tr><th>txid</th><th>value</th></tr></thead>
-            <tbody id="balance-tbody"></tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
     <!-- ── Receive panel ───────────────────────────────────────────────────── -->
-    <section class="tab-panel" id="ap-receive" role="tabpanel">
+    <section class="tab-panel active" id="ap-receive" role="tabpanel">
       <p class="label">Your address</p>
       <p class="tx-addr-display">
         <span class="coord-label">0x</span><span id="receive-addr" class="tx-addr-val">—</span>
       </p>
+      <button class="action-btn soft-btn" id="receive-get-btn">GET balance</button>
+      <p id="receive-status" class="tx-status"></p>
+      <div id="receive-balance" class="tx-balance-block compact-balance"></div>
       <div id="receive-qr" class="receive-qr-box"></div>
+    </section>
+
+    <!-- ── About panel ─────────────────────────────────────────────────────── -->
+    <section class="tab-panel" id="ap-about" role="tabpanel">
+      <p class="label">About OBT Wallet</p>
+      <div class="about-copy">
+        <p>OBT Wallet is made only for education, experiments, and playful testing.</p>
+        <p>It uses the toy ESS251 elliptic-curve system and the ASH24 toy hash function.</p>
+        <p>Transactions follow a simple P2PK model, where coins are locked to a public key and unlocked by a signature.</p>
+        <p>The blockchain backend is centralized, but the system keeps the transaction data transparent and easy to inspect.</p>
+      </div>
     </section>
 
     <!-- ══ DEV TAB BAR ═══════════════════════════════════════════════════════ -->
@@ -117,16 +113,18 @@
       <p class="label">Scalar k</p>
       <input type="number" id="keys-inp" placeholder="1" min="0" inputmode="numeric" autofocus />
       <p class="curve-info" id="curve-info"></p>
+      <input type="range" id="keys-slider" class="key-slider" min="1" max="251" value="1" aria-label="Scalar k slider" />
       <div class="divider">k · G</div>
+      <p class="key-warning">Warning:<br /> anyone who sees your private key can control your funds.</p>
       <p class="label">Public key point</p>
       <div class="key-result-row">
         <span id="keys-point" class="result-value placeholder">—</span>
         <span id="keys-hex"   class="result-hex"></span>
       </div>
       <div class="key-cache-row">
-        <button class="action-btn mini-btn" id="keys-save-btn">SAVE</button>
-        <button class="action-btn mini-btn" id="keys-load-btn">LOAD</button>
-        <button class="action-btn mini-btn" id="keys-clear-btn">CLEAR</button>
+        <button class="action-btn mini-btn soft-btn" id="keys-save-btn">SAVE</button>
+        <button class="action-btn mini-btn soft-btn" id="keys-load-btn">LOAD</button>
+        <button class="action-btn mini-btn soft-btn" id="keys-clear-btn">CLEAR</button>
         <span id="keys-cache-status" class="key-cache-status"></span>
       </div>
     </section>
@@ -148,7 +146,7 @@
           <p class="tx-addr-display">
             <span class="coord-label">0x</span><span id="tx-addr" class="tx-addr-val">—</span>
           </p>
-          <button class="action-btn" id="tx-get-btn">GET balance</button>
+          <button class="action-btn soft-btn" id="tx-get-btn">GET balance</button>
         </div>
         <div class="tx-qr-wrap">
           <div id="tx-qr" class="tx-qr-box"></div>
@@ -184,30 +182,36 @@
       <div>SETUP/info</div>
     </div>
     <div class="setup-panel" id="setup-panel" hidden>
-      <div class="setup-line">obt_wallet | v0.2 | 2026/06</div>
-      <div class="setup-line">ess251.js v<span id="setup-ess-ver"></span></div>
-      <div class="setup-line">ash24.js v<span id="setup-ash-ver"></span></div>
       <div class="setup-line">mode <button class="theme-toggle" id="toggle" type="button">light</button></div>
       <div class="setup-line">cached key <span id="setup-key-cache">none</span></div>
+      <hr />
+      <div class="setup-line">obt_wallet | v0.19 | 2026/06</div>
+      <div class="setup-line">ess251.js v<span id="setup-ess-ver"></span></div>
+      <div class="setup-line">ash24.js v<span id="setup-ash-ver"></span></div>
+      <hr />
+      <a href="https://agamapoint.com/bitcoin/">agamapoint</a>
+     <span aria-hidden="true">|</span>
+     <a href="https://www.agamapoint.com/bbr/">bbr</a>
+     <span aria-hidden="true">|</span>
+     <a href="https://github.com/agama-point/obt_app">obt</a>
+
+      
+      
     </div>
   </div>
 
   <footer class="page-footer" aria-label="Project links">
-    <a href="https://agamapoint.com/bitcoin/">agamapoint</a>
-    <span aria-hidden="true">|</span>
-    <a href="https://www.agamapoint.com/bbr/">bbr</a>
-    <span aria-hidden="true">|</span>
-    <a href="https://github.com/agama-point/obt_app">obt</a>
+    <a href="https://agamapoint.com/bitcoin/">(c) Agama Point Academy</a>
   </footer>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <script src="build/js/ess251.js?v=20260601f"></script>
-  <script src="build/js/ash24.js?v=20260601f"></script>
-  <script src="build/js/jsQR.min.js?v=20260601f"></script>
-  <script src="build/js/qr_scan.js?v=20260601f"></script>
-  <script src="build/js/api_client.js?v=20260601f"></script>
-  <script src="build/js/key_cache.js?v=20260601f"></script>
-  <script src="build/js/ts_obt_wallet.js?v=20260601f"></script>
+  <script src="build/js/ess251.js?v=20260601n"></script>
+  <script src="build/js/ash24.js?v=20260601n"></script>
+  <script src="build/js/jsQR.min.js?v=20260601n"></script>
+  <script src="build/js/qr_scan.js?v=20260601n"></script>
+  <script src="build/js/api_client.js?v=20260601n"></script>
+  <script src="build/js/key_cache.js?v=20260601n"></script>
+  <script src="build/js/ts_obt_wallet.js?v=20260601n"></script>
   <script>
     document.getElementById("ess-ver").textContent = window.ESS251_VER ?? "";
     document.getElementById("ash-ver").textContent = window.ASH24_VER  ?? "";

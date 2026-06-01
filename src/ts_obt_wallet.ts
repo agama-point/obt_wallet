@@ -1,5 +1,5 @@
 // ts_obt_wallet.ts – ECC251 toy wallet
-// Structure: action tabs (Send | Balance | Receive) + dev tabs (Keys | Hash | Transaction)
+// Structure: action tabs (Receive | Send | About) + dev tabs (Keys | Hash | Transaction)
 
 // --- Globals from ess251.js ---
 declare function scalar_mult(k: number, P: [number, number]): [number, number] | null;
@@ -123,7 +123,7 @@ function refreshSetupPanel(): void {
 
 function onAddressChange(): void {
   // sync all address displays
-  ["tx-addr", "receive-addr", "balance-addr"].forEach(id => {
+  ["tx-addr", "receive-addr"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.textContent = lastAddress ?? "—";
   });
@@ -171,6 +171,7 @@ function initSend(): void {
 
 async function fetchSendUtxos(): Promise<void> {
   const statusEl = document.getElementById("send-status") as HTMLElement | null;
+  const balEl = document.getElementById("send-balance") as HTMLElement | null;
   const wrap = document.getElementById("send-utxo-wrap") as HTMLElement | null;
   const tbody = document.getElementById("send-utxo-tbody") as HTMLElement | null;
   const resultEl = document.getElementById("send-sign-result") as HTMLElement | null;
@@ -178,10 +179,11 @@ async function fetchSendUtxos(): Promise<void> {
   const showAllToggle = document.getElementById("send-show-all-utxos") as HTMLInputElement | null;
   const showCount = document.getElementById("send-utxo-count") as HTMLElement | null;
 
-  if (!statusEl || !wrap || !tbody || !resultEl || !sendBtn || !showAllToggle || !showCount) return;
+  if (!statusEl || !balEl || !wrap || !tbody || !resultEl || !sendBtn || !showAllToggle || !showCount) return;
 
   statusEl.textContent = "";
   statusEl.className = "tx-status";
+  balEl.innerHTML = "";
   wrap.style.display = "none";
   tbody.innerHTML = "";
   showCount.textContent = "";
@@ -202,6 +204,7 @@ async function fetchSendUtxos(): Promise<void> {
   try {
     const data = await apiFetch(lastAddress);
     if (data.status !== "ok") throw new Error(`API: ${data.status}`);
+    renderBalanceSummary(balEl, data.balance, data.utxo_count);
 
     sendUtxos = data.unspent_outputs;
     if (sendUtxos.length === 0) {
@@ -365,15 +368,21 @@ async function broadcastSendTransaction(): Promise<void> {
     const statusText = response.status === "ok"
       ? `${response.message}. TXID: ${response.txid}`
       : `Error: ${response.message ?? response.msg ?? "Unknown API response"}`;
-    statusEl.textContent = statusText;
-    statusEl.className = response.status === "ok"
-      ? "tx-status ok"
-      : "tx-status error";
+    const statusHtml = response.status === "ok"
+      ? `${escapeHtml(response.message ?? "Transaction broadcasted successfully.")}<br />TXID: ${escapeHtml(String(response.txid ?? ""))}`
+      : "";
+    if (response.status === "ok") {
+      statusEl.innerHTML = statusHtml;
+      statusEl.className = "tx-status ok";
+    } else {
+      statusEl.textContent = statusText;
+      statusEl.className = "tx-status error";
+    }
     if (response.status === "ok") {
       sendBuiltTx = null;
       sendBtn.disabled = true;
       await refreshWalletAfterSend();
-      statusEl.textContent = statusText;
+      statusEl.innerHTML = statusHtml;
       statusEl.className = "tx-status ok";
     } else {
       sendBtn.disabled = false;
@@ -386,31 +395,44 @@ async function broadcastSendTransaction(): Promise<void> {
 
 async function refreshWalletAfterSend(): Promise<void> {
   await fetchSendUtxos();
-  await fetchBalance(
-    "balance-addr",
-    "balance-status",
-    "balance-block",
-    "balance-tbody",
-    "balance-table-wrap"
-  );
+  await fetchReceiveBalance();
+}
+
+function initReceive(): void {
+  const btn = document.getElementById("receive-get-btn") as HTMLButtonElement | null;
+  if (!btn) return;
+
+  btn.addEventListener("click", fetchReceiveBalance);
+}
+
+async function fetchReceiveBalance(): Promise<void> {
+  const statusEl = document.getElementById("receive-status") as HTMLElement | null;
+  const balEl = document.getElementById("receive-balance") as HTMLElement | null;
+
+  if (!statusEl || !balEl) return;
+
+  if (!lastAddress) {
+    showTxError(statusEl, "No key computed - go to Keys tab first.");
+    return;
+  }
+
+  statusEl.textContent = "Fetching...";
+  statusEl.className = "tx-status";
+  balEl.innerHTML = "";
+
+  try {
+    const data = await apiFetch(lastAddress);
+    if (data.status !== "ok") throw new Error(`API: ${data.status}`);
+    statusEl.textContent = "";
+    renderBalanceSummary(balEl, data.balance, data.utxo_count);
+  } catch (err) {
+    showTxError(statusEl, `Error: ${String(err)}`);
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ACTION PANEL: BALANCE
 // ══════════════════════════════════════════════════════════════════════════════
-
-function initBalance(): void {
-  const btn = document.getElementById("balance-get-btn") as HTMLButtonElement | null;
-  if (!btn) return;
-
-  btn.addEventListener("click", () => fetchBalance(
-    "balance-addr",
-    "balance-status",
-    "balance-block",
-    "balance-tbody",
-    "balance-table-wrap"
-  ));
-}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // SHARED: fetch balance + render
@@ -451,10 +473,7 @@ async function fetchBalance(
     const data = await apiFetch(lastAddress);
     if (data.status !== "ok") throw new Error(`API: ${data.status}`);
     statusEl.textContent = "";
-    balEl.innerHTML =
-      `<span class="tx-label">balance</span>` +
-      `<span class="tx-big">${data.balance}</span>` +
-      `<span class="tx-sub">${data.utxo_count} UTXOs</span>`;
+    renderBalanceSummary(balEl, data.balance, data.utxo_count);
     if (tbodyId === "tx-tbody") {
       txUtxos = data.unspent_outputs.slice(0, 5);
       tbody.innerHTML = txUtxos
@@ -475,12 +494,20 @@ async function fetchBalance(
   }
 }
 
+function renderBalanceSummary(el: HTMLElement, balance: number, utxoCount: number): void {
+  el.innerHTML =
+    `<span class="tx-label">balance</span>` +
+    `<span class="tx-big">${balance}</span>` +
+    `<span class="tx-sub">in ${utxoCount} UTXOs</span>`;
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // DEV TAB: KEYS
 // ══════════════════════════════════════════════════════════════════════════════
 
 function initKeys(): void {
   const inp   = document.getElementById("keys-inp")   as HTMLInputElement | null;
+  const slider = document.getElementById("keys-slider") as HTMLInputElement | null;
   const outPt = document.getElementById("keys-point") as HTMLElement | null;
   const outHx = document.getElementById("keys-hex")   as HTMLElement | null;
   const saveBtn = document.getElementById("keys-save-btn") as HTMLButtonElement | null;
@@ -521,6 +548,11 @@ function initKeys(): void {
   setKeyCacheStatus(cacheStatus, hasCachedKey() ? "saved key available" : "");
   refreshSetupPanel();
 
+  slider?.addEventListener("input", () => {
+    inp.value = slider.value;
+    inp.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+
   inp.addEventListener("input", () => {
     const raw = inp.value.trim();
 
@@ -536,6 +568,7 @@ function initKeys(): void {
       outHx.textContent = "";
       lastAddress = null; onAddressChange(); return;
     }
+    if (slider && k >= 1 && k <= 251) slider.value = String(k);
     if (k === 0) {
       outPt.textContent = "∞"; outPt.className = "result-value";
       outHx.textContent = "";
@@ -725,7 +758,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initHash();
   initTransaction();
   initSend();
-  initBalance();
+  initReceive();
 
   const info = document.getElementById("curve-info");
   if (info) {

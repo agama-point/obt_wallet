@@ -1,6 +1,6 @@
 "use strict";
 // ts_obt_wallet.ts – ECC251 toy wallet
-// Structure: action tabs (Send | Balance | Receive) + dev tabs (Keys | Hash | Transaction)
+// Structure: action tabs (Receive | Send | About) + dev tabs (Keys | Hash | Transaction)
 // ── Shared state ──────────────────────────────────────────────────────────────
 let lastAddress = null; // hex pubkey address, e.g. "7214"
 let txUtxos = [];
@@ -76,7 +76,7 @@ function refreshSetupPanel() {
 // ── ADDRESS UPDATE (called whenever lastAddress changes) ──────────────────────
 function onAddressChange() {
     // sync all address displays
-    ["tx-addr", "receive-addr", "balance-addr"].forEach(id => {
+    ["tx-addr", "receive-addr"].forEach(id => {
         const el = document.getElementById(id);
         if (el)
             el.textContent = lastAddress !== null && lastAddress !== void 0 ? lastAddress : "—";
@@ -126,16 +126,18 @@ function initSend() {
 }
 async function fetchSendUtxos() {
     const statusEl = document.getElementById("send-status");
+    const balEl = document.getElementById("send-balance");
     const wrap = document.getElementById("send-utxo-wrap");
     const tbody = document.getElementById("send-utxo-tbody");
     const resultEl = document.getElementById("send-sign-result");
     const sendBtn = document.getElementById("send-broadcast-btn");
     const showAllToggle = document.getElementById("send-show-all-utxos");
     const showCount = document.getElementById("send-utxo-count");
-    if (!statusEl || !wrap || !tbody || !resultEl || !sendBtn || !showAllToggle || !showCount)
+    if (!statusEl || !balEl || !wrap || !tbody || !resultEl || !sendBtn || !showAllToggle || !showCount)
         return;
     statusEl.textContent = "";
     statusEl.className = "tx-status";
+    balEl.innerHTML = "";
     wrap.style.display = "none";
     tbody.innerHTML = "";
     showCount.textContent = "";
@@ -154,6 +156,7 @@ async function fetchSendUtxos() {
         const data = await apiFetch(lastAddress);
         if (data.status !== "ok")
             throw new Error(`API: ${data.status}`);
+        renderBalanceSummary(balEl, data.balance, data.utxo_count);
         sendUtxos = data.unspent_outputs;
         if (sendUtxos.length === 0) {
             showTxError(statusEl, "No available UTXOs.");
@@ -271,7 +274,7 @@ function buildSendTransaction() {
     statusEl.textContent = "Transaction built and signed.";
 }
 async function broadcastSendTransaction() {
-    var _a, _b;
+    var _a, _b, _c, _d;
     const statusEl = document.getElementById("send-status");
     const sendBtn = document.getElementById("send-broadcast-btn");
     if (!statusEl || !sendBtn)
@@ -295,15 +298,22 @@ async function broadcastSendTransaction() {
         const statusText = response.status === "ok"
             ? `${response.message}. TXID: ${response.txid}`
             : `Error: ${(_b = (_a = response.message) !== null && _a !== void 0 ? _a : response.msg) !== null && _b !== void 0 ? _b : "Unknown API response"}`;
-        statusEl.textContent = statusText;
-        statusEl.className = response.status === "ok"
-            ? "tx-status ok"
-            : "tx-status error";
+        const statusHtml = response.status === "ok"
+            ? `${escapeHtml((_c = response.message) !== null && _c !== void 0 ? _c : "Transaction broadcasted successfully.")}<br />TXID: ${escapeHtml(String((_d = response.txid) !== null && _d !== void 0 ? _d : ""))}`
+            : "";
+        if (response.status === "ok") {
+            statusEl.innerHTML = statusHtml;
+            statusEl.className = "tx-status ok";
+        }
+        else {
+            statusEl.textContent = statusText;
+            statusEl.className = "tx-status error";
+        }
         if (response.status === "ok") {
             sendBuiltTx = null;
             sendBtn.disabled = true;
             await refreshWalletAfterSend();
-            statusEl.textContent = statusText;
+            statusEl.innerHTML = statusHtml;
             statusEl.className = "tx-status ok";
         }
         else {
@@ -317,17 +327,40 @@ async function broadcastSendTransaction() {
 }
 async function refreshWalletAfterSend() {
     await fetchSendUtxos();
-    await fetchBalance("balance-addr", "balance-status", "balance-block", "balance-tbody", "balance-table-wrap");
+    await fetchReceiveBalance();
+}
+function initReceive() {
+    const btn = document.getElementById("receive-get-btn");
+    if (!btn)
+        return;
+    btn.addEventListener("click", fetchReceiveBalance);
+}
+async function fetchReceiveBalance() {
+    const statusEl = document.getElementById("receive-status");
+    const balEl = document.getElementById("receive-balance");
+    if (!statusEl || !balEl)
+        return;
+    if (!lastAddress) {
+        showTxError(statusEl, "No key computed - go to Keys tab first.");
+        return;
+    }
+    statusEl.textContent = "Fetching...";
+    statusEl.className = "tx-status";
+    balEl.innerHTML = "";
+    try {
+        const data = await apiFetch(lastAddress);
+        if (data.status !== "ok")
+            throw new Error(`API: ${data.status}`);
+        statusEl.textContent = "";
+        renderBalanceSummary(balEl, data.balance, data.utxo_count);
+    }
+    catch (err) {
+        showTxError(statusEl, `Error: ${String(err)}`);
+    }
 }
 // ══════════════════════════════════════════════════════════════════════════════
 // ACTION PANEL: BALANCE
 // ══════════════════════════════════════════════════════════════════════════════
-function initBalance() {
-    const btn = document.getElementById("balance-get-btn");
-    if (!btn)
-        return;
-    btn.addEventListener("click", () => fetchBalance("balance-addr", "balance-status", "balance-block", "balance-tbody", "balance-table-wrap"));
-}
 // ══════════════════════════════════════════════════════════════════════════════
 // SHARED: fetch balance + render
 // ══════════════════════════════════════════════════════════════════════════════
@@ -359,10 +392,7 @@ async function fetchBalance(addrId, statusId, balBlockId, tbodyId, tableWrapId) 
         if (data.status !== "ok")
             throw new Error(`API: ${data.status}`);
         statusEl.textContent = "";
-        balEl.innerHTML =
-            `<span class="tx-label">balance</span>` +
-                `<span class="tx-big">${data.balance}</span>` +
-                `<span class="tx-sub">${data.utxo_count} UTXOs</span>`;
+        renderBalanceSummary(balEl, data.balance, data.utxo_count);
         if (tbodyId === "tx-tbody") {
             txUtxos = data.unspent_outputs.slice(0, 5);
             tbody.innerHTML = txUtxos
@@ -382,11 +412,18 @@ async function fetchBalance(addrId, statusId, balBlockId, tbodyId, tableWrapId) 
         statusEl.className = "tx-status error";
     }
 }
+function renderBalanceSummary(el, balance, utxoCount) {
+    el.innerHTML =
+        `<span class="tx-label">balance</span>` +
+            `<span class="tx-big">${balance}</span>` +
+            `<span class="tx-sub">in ${utxoCount} UTXOs</span>`;
+}
 // ══════════════════════════════════════════════════════════════════════════════
 // DEV TAB: KEYS
 // ══════════════════════════════════════════════════════════════════════════════
 function initKeys() {
     const inp = document.getElementById("keys-inp");
+    const slider = document.getElementById("keys-slider");
     const outPt = document.getElementById("keys-point");
     const outHx = document.getElementById("keys-hex");
     const saveBtn = document.getElementById("keys-save-btn");
@@ -422,6 +459,10 @@ function initKeys() {
     });
     setKeyCacheStatus(cacheStatus, hasCachedKey() ? "saved key available" : "");
     refreshSetupPanel();
+    slider === null || slider === void 0 ? void 0 : slider.addEventListener("input", () => {
+        inp.value = slider.value;
+        inp.dispatchEvent(new Event("input", { bubbles: true }));
+    });
     inp.addEventListener("input", () => {
         const raw = inp.value.trim();
         if (raw === "") {
@@ -441,6 +482,8 @@ function initKeys() {
             onAddressChange();
             return;
         }
+        if (slider && k >= 1 && k <= 251)
+            slider.value = String(k);
         if (k === 0) {
             outPt.textContent = "∞";
             outPt.className = "result-value";
@@ -613,7 +656,7 @@ document.addEventListener("DOMContentLoaded", () => {
     initHash();
     initTransaction();
     initSend();
-    initBalance();
+    initReceive();
     const info = document.getElementById("curve-info");
     if (info) {
         const { p, a, b, G, n } = ECC_PARAMS;
