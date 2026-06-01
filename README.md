@@ -4,6 +4,18 @@
 
 This is not a production wallet. It is a learning and testing tool.
 
+## App Structure
+
+The TypeScript code is split into small browser-loaded modules:
+
+- `ts_obt_wallet.ts` - app boot, UI flow, keys, send, balance, transaction panel
+- `api_client.ts` - BBR API calls
+- `qr_scan.ts` - camera and QR scanning via `jsQR`
+- `key_cache.ts` - test-only browser cache for the last scalar key
+
+The generated JavaScript is placed in `build/js/`.
+
+
 ## Overview
 
 OBT Wallet is a browser-based TypeScript app that works with a toy elliptic-curve signature scheme and a simple BBR API. It lets you:
