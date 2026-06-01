@@ -82,4 +82,10 @@ For QR camera scanning, use HTTPS or localhost. Mobile browsers generally block 
 
 This project is for education and testing only.
 
+---
+
+https://github.com/agama-point/Bit-Block-Rithm
+
+
+
 Do not use it with real funds, real private keys, or production cryptography.
