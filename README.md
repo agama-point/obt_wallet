@@ -1,20 +1,13 @@
 # OBT Wallet
 
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![TypeScript](https://img.shields.io/badge/TypeScript-web_app-3178c6.svg)
+![Browser](https://img.shields.io/badge/browser-mobile_ready-brightgreen.svg)
+![Purpose](https://img.shields.io/badge/purpose-education%20%26%20testing-orange.svg)
+
 **OBT Wallet** is a small educational web wallet for experimenting with the One Byte Toy / BBR playground. It is intentionally tiny, transparent, and test-oriented: the goal is to make keys, toy signatures, UTXO selection, QR scanning, hashing, and API calls easy to inspect and understand.
 
 This is not a production wallet. It is a learning and testing tool.
-
-## App Structure
-
-The TypeScript code is split into small browser-loaded modules:
-
-- `ts_obt_wallet.ts` - app boot, UI flow, keys, send, balance, transaction panel
-- `api_client.ts` - BBR API calls
-- `qr_scan.ts` - camera and QR scanning via `jsQR`
-- `key_cache.ts` - test-only browser cache for the last scalar key
-
-The generated JavaScript is placed in `build/js/`.
-
 
 ## Overview
 
