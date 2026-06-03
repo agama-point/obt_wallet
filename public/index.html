@@ -84,6 +84,9 @@
       <p class="tx-addr-display">
         <span class="coord-label">0x</span><span id="receive-addr" class="tx-addr-val">*</span>
       </p>
+      <p class="tx-addr-display receive-toy32-display" aria-label="Toy32 address">
+        <span id="receive-toy32-addr" class="receive-toy32-val">*</span>
+      </p>
       <button class="action-btn soft-btn" id="receive-get-btn">GET balance</button>
       <p id="receive-status" class="tx-status error">No key computed - go to Keys tab first.</p>
       <div id="receive-balance" class="tx-balance-block compact-balance"></div>
@@ -226,6 +229,7 @@
   <script src="js/api_client.js?v=20260601n"></script>
   <script src="js/key_cache.js?v=20260601n"></script>
   <script src="js/obt_mnemonic.js?v=20260603a"></script>
+  <script src="js/agama_bech32.js?v=20260603a"></script>
   <script src="js/ts_obt_wallet.js?v=20260603e"></script>
   <script>
     document.getElementById("about-ess-ver").textContent = window.ESS251_VER ?? "";

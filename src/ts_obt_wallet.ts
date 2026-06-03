@@ -5,6 +5,7 @@
 declare function scalar_mult(k: number, P: [number, number]): [number, number] | null;
 declare function point_adding(P1: [number, number] | null, P2: [number, number] | null): [number, number] | null;
 declare function pubkey_to_addr(pub: [number, number]): string;
+declare function hexa_to_toy32(hex: string, prefix?: string): string;
 declare function hexa_to_point(hex: string): [number, number];
 declare function signToy(
   private_key: number,
@@ -208,6 +209,15 @@ function refreshSetupPanel(): void {
   if (keyCache) keyCache.textContent = hasCachedKey() ? "available" : "none";
 }
 
+function getToy32Address(hexAddress: string | null): string {
+  if (!hexAddress) return EMPTY_ADDRESS_PLACEHOLDER;
+  try {
+    return hexa_to_toy32(hexAddress, "a");
+  } catch {
+    return EMPTY_ADDRESS_PLACEHOLDER;
+  }
+}
+
 // ── ADDRESS UPDATE (called whenever lastAddress changes) ──────────────────────
 
 function onAddressChange(): void {
@@ -216,6 +226,8 @@ function onAddressChange(): void {
     const el = document.getElementById(id);
     if (el) el.textContent = lastAddress ?? EMPTY_ADDRESS_PLACEHOLDER;
   });
+  const receiveToy32 = document.getElementById("receive-toy32-addr");
+  if (receiveToy32) receiveToy32.textContent = getToy32Address(lastAddress);
   const sendFrom = document.getElementById("send-from-addr");
   if (sendFrom) sendFrom.textContent = lastAddress ?? EMPTY_ADDRESS_PLACEHOLDER;
   // QR codes

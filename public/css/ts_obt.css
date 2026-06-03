@@ -425,6 +425,16 @@ input:focus { border-bottom-color: var(--accent); }
 .receive-qr-box canvas,
 .receive-qr-box img { display: block; width: 120px !important; height: 120px !important; }
 
+.receive-toy32-display {
+  margin-top: -0.35rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.receive-toy32-val {
+  font-family: var(--mono);
+  overflow-wrap: anywhere;
+}
+
 .about-copy {
   font-family: var(--sans);
   font-size: 0.86rem;

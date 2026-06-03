@@ -161,6 +161,16 @@ function refreshSetupPanel() {
     if (keyCache)
         keyCache.textContent = hasCachedKey() ? "available" : "none";
 }
+function getToy32Address(hexAddress) {
+    if (!hexAddress)
+        return EMPTY_ADDRESS_PLACEHOLDER;
+    try {
+        return hexa_to_toy32(hexAddress, "a");
+    }
+    catch (_a) {
+        return EMPTY_ADDRESS_PLACEHOLDER;
+    }
+}
 // â”€â”€ ADDRESS UPDATE (called whenever lastAddress changes) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function onAddressChange() {
     // sync all address displays
@@ -169,6 +179,9 @@ function onAddressChange() {
         if (el)
             el.textContent = lastAddress !== null && lastAddress !== void 0 ? lastAddress : EMPTY_ADDRESS_PLACEHOLDER;
     });
+    const receiveToy32 = document.getElementById("receive-toy32-addr");
+    if (receiveToy32)
+        receiveToy32.textContent = getToy32Address(lastAddress);
     const sendFrom = document.getElementById("send-from-addr");
     if (sendFrom)
         sendFrom.textContent = lastAddress !== null && lastAddress !== void 0 ? lastAddress : EMPTY_ADDRESS_PLACEHOLDER;
