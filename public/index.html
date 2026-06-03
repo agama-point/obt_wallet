@@ -101,7 +101,7 @@
           <li>The blockchain backend is centralized, but the system keeps the transaction data transparent and easy to inspect.</li>
         </ul>
         <div class="about-meta" aria-label="Project information">
-          <div>obt_wallet | v0.20 | 2026/06</div>
+          <div>obt_wallet | v0.21 | 2026/06</div>
           <div>ess251.js v<span id="about-ess-ver"></span></div>
           <div>ash24.js v<span id="about-ash-ver"></span></div>
           <hr />
@@ -204,6 +204,7 @@
     <div class="setup-panel" id="setup-panel" hidden>
       <div class="setup-line"><button class="theme-toggle" id="toggle" type="button">switch to dark mode</button></div>
       <div class="setup-line">cached key <span id="setup-key-cache">none</span></div>
+      <div class="setup-line"><button class="setup-link" id="setup-mnemonic-btn" type="button">[get mnemonic]</button><span id="setup-mnemonic-out"></span></div>
       <div class="setup-line"><a href="https://www.agamapoint.com/bbr/mempool.php?filter=mempool&page=1">obt_mempool</a></div>
       <div class="setup-tests">
         <div class="setup-tests-label">test:</div>
@@ -224,7 +225,8 @@
   <script src="js/qr_scan.js?v=20260601n"></script>
   <script src="js/api_client.js?v=20260601n"></script>
   <script src="js/key_cache.js?v=20260601n"></script>
-  <script src="js/ts_obt_wallet.js?v=20260603b"></script>
+  <script src="js/obt_mnemonic.js?v=20260603a"></script>
+  <script src="js/ts_obt_wallet.js?v=20260603e"></script>
   <script>
     document.getElementById("about-ess-ver").textContent = window.ESS251_VER ?? "";
     document.getElementById("about-ash-ver").textContent = window.ASH24_VER  ?? "";
