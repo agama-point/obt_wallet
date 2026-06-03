@@ -45,6 +45,8 @@ let txUtxos: Array<{ txid: number; value: number }> = [];
 let sendUtxos: ToyUtxo[] = [];
 let sendBuiltTx: BuiltSendTx | null = null;
 let sendShowAllUtxos = false;
+let sendUtxoAddress: string | null = null;
+let activeActionTab = "receive";
 const EMPTY_ADDRESS_PLACEHOLDER = "*";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -79,11 +81,33 @@ function initTabGroup(selector: string, panelPrefix: string): void {
 
       // Stop camera if leaving Send tab
       if (panelPrefix === "ap-" && target !== "send") stopCamera();
+      if (panelPrefix === "ap-") {
+        activeActionTab = target;
+        updateKeyEditLock();
+      }
 
       tabs.forEach(t   => t.classList.toggle("active", t === btn));
       panels.forEach(p => p.classList.toggle("active", p.id === `${panelPrefix}${target}`));
     });
   });
+}
+
+function updateKeyEditLock(): void {
+  const locked = activeActionTab === "send";
+  const keyInput = document.getElementById("keys-inp") as HTMLInputElement | null;
+  const slider = document.getElementById("keys-slider") as HTMLInputElement | null;
+  const loadBtn = document.getElementById("keys-load-btn") as HTMLButtonElement | null;
+  const cacheStatus = document.getElementById("keys-cache-status") as HTMLElement | null;
+
+  [keyInput, slider, loadBtn].forEach(control => {
+    if (!control) return;
+    control.disabled = locked;
+    control.title = locked ? "Key is locked while Send is open." : "";
+  });
+
+  if (cacheStatus) {
+    cacheStatus.textContent = locked ? "key locked while sending" : (hasCachedKey() ? "saved key available" : "");
+  }
 }
 
 function initDevPanels(): void {
@@ -145,6 +169,35 @@ function initTheme(): void {
   });
 }
 
+function initSetupMnemonic(): void {
+  const btn = document.getElementById("setup-mnemonic-btn") as HTMLButtonElement | null;
+  const out = document.getElementById("setup-mnemonic-out") as HTMLElement | null;
+  if (!btn || !out) return;
+
+  btn.addEventListener("click", () => {
+    const keyInput = document.getElementById("keys-inp") as HTMLInputElement | null;
+    const currentKey = keyInput?.value.trim() ?? "";
+    const keyValue = currentKey !== "" ? currentKey : loadKeyFromCache();
+    if (keyValue === null || keyValue.trim() === "") {
+      out.textContent = "no key";
+      return;
+    }
+
+    const byteValue = Number.parseInt(keyValue.trim(), 10);
+    if (!Number.isInteger(byteValue) || byteValue < 0 || byteValue > 255) {
+      out.textContent = "invalid byte key";
+      return;
+    }
+
+    out.textContent = obtMnemonicEncode(byteValue);
+  });
+}
+
+function clearSetupMnemonic(): void {
+  const out = document.getElementById("setup-mnemonic-out") as HTMLElement | null;
+  if (out) out.textContent = "";
+}
+
 function applyTheme(theme: string, toggle: HTMLButtonElement): void {
   document.documentElement.setAttribute("data-theme", theme);
   toggle.textContent = theme === "dark" ? "switch to light mode" : "switch to dark mode";
@@ -173,6 +226,7 @@ function onAddressChange(): void {
   } else {
     resetWalletOutputsForNoKey();
   }
+  if (sendUtxoAddress && sendUtxoAddress !== lastAddress) clearSendUtxoSelection();
 }
 
 function clearMissingKeyStatuses(): void {
@@ -219,11 +273,32 @@ function resetWalletOutputsForNoKey(): void {
   txUtxos = [];
   sendUtxos = [];
   sendBuiltTx = null;
+  sendUtxoAddress = null;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ACTION PANEL: SEND
 // ══════════════════════════════════════════════════════════════════════════════
+
+function clearSendUtxoSelection(): void {
+  const balEl = document.getElementById("send-balance") as HTMLElement | null;
+  const wrap = document.getElementById("send-utxo-wrap") as HTMLElement | null;
+  const tbody = document.getElementById("send-utxo-tbody") as HTMLElement | null;
+  const resultEl = document.getElementById("send-sign-result") as HTMLElement | null;
+  const sendBtn = document.getElementById("send-broadcast-btn") as HTMLButtonElement | null;
+  const showCount = document.getElementById("send-utxo-count") as HTMLElement | null;
+
+  if (balEl) balEl.innerHTML = "";
+  if (wrap) wrap.style.display = "none";
+  if (tbody) tbody.innerHTML = "";
+  if (resultEl) resultEl.innerHTML = "";
+  if (sendBtn) sendBtn.disabled = true;
+  if (showCount) showCount.textContent = "";
+
+  sendUtxos = [];
+  sendBuiltTx = null;
+  sendUtxoAddress = null;
+}
 
 function initSend(): void {
   const qrBtn  = document.getElementById("send-qr-btn")  as HTMLButtonElement | null;
@@ -280,20 +355,27 @@ async function fetchSendUtxos(): Promise<void> {
   sendBtn.disabled = true;
   sendUtxos = [];
   sendBuiltTx = null;
+  sendUtxoAddress = null;
 
   if (!lastAddress) {
     resetWalletOutputsForNoKey();
     return;
   }
 
+  const requestedAddress = lastAddress;
   statusEl.textContent = "Fetching UTXOs...";
 
   try {
-    const data = await apiFetch(lastAddress);
+    const data = await apiFetch(requestedAddress);
+    if (requestedAddress !== lastAddress) {
+      showTxError(statusEl, "Key changed while loading UTXOs. Load them again.");
+      return;
+    }
     if (data.status !== "ok") throw new Error(`API: ${data.status}`);
     renderBalanceSummary(balEl, data.balance, data.utxo_count);
 
     sendUtxos = data.unspent_outputs;
+    sendUtxoAddress = requestedAddress;
     if (sendUtxos.length === 0) {
       showTxError(statusEl, "No available UTXOs.");
       return;
@@ -375,6 +457,10 @@ function buildSendTransaction(): void {
     showTxError(statusEl, "No sender key computed - go to Keys tab first.");
     return;
   }
+  if (!sendUtxoAddress || sendUtxoAddress !== lastAddress) {
+    showTxError(statusEl, "Loaded UTXOs do not match the current key. Load UTXOs again.");
+    return;
+  }
 
   const privateKey = parseInt(keyIn.value.trim(), 10);
   if (!Number.isFinite(privateKey) || privateKey <= 0) {
@@ -417,6 +503,10 @@ function buildSendTransaction(): void {
   }
 
   const sender = pubkey_to_addr(senderPoint);
+  if (sender !== sendUtxoAddress) {
+    showTxError(statusEl, "Selected UTXO belongs to a different key. Load UTXOs again.");
+    return;
+  }
   const message = `${sender}|${utxo.txid}|${recipient}|${amount}`;
   const hashRaw = ASH24(message);
   const hashHex = hex24(hashRaw);
@@ -668,11 +758,13 @@ function initKeys(): void {
   refreshSetupPanel();
 
   slider?.addEventListener("input", () => {
+    clearSetupMnemonic();
     inp.value = slider.value;
     inp.dispatchEvent(new Event("input", { bubbles: true }));
   });
 
   inp.addEventListener("input", () => {
+    clearSetupMnemonic();
     const raw = inp.value.trim();
 
     if (raw === "") {
@@ -871,6 +963,7 @@ function escapeHtml(value: string): string {
 
 document.addEventListener("DOMContentLoaded", () => {
   initTheme();
+  initSetupMnemonic();
   initTabGroup(".action-tab-btn", "ap-");
   initDevPanels();
   initKeys();
@@ -878,6 +971,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initTransaction();
   initSend();
   initReceive();
+  updateKeyEditLock();
 
   const info = document.getElementById("curve-info");
   if (info) {
