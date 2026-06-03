@@ -45,6 +45,7 @@ let txUtxos: Array<{ txid: number; value: number }> = [];
 let sendUtxos: ToyUtxo[] = [];
 let sendBuiltTx: BuiltSendTx | null = null;
 let sendShowAllUtxos = false;
+const EMPTY_ADDRESS_PLACEHOLDER = "*";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -85,6 +86,41 @@ function initTabGroup(selector: string, panelPrefix: string): void {
   });
 }
 
+function initDevPanels(): void {
+  const keysToggle = document.getElementById("keys-toggle") as HTMLButtonElement | null;
+  const testsHeading = document.getElementById("dev-tests-heading") as HTMLElement | null;
+  const setupPanelLinks = document.querySelectorAll<HTMLButtonElement>("[data-dev-panel]");
+  const panels = document.querySelectorAll<HTMLElement>('.tab-panel[id^="dp-"]');
+
+  const showPanel = (name: string, scroll = false): void => {
+    const activePanel = document.getElementById(`dp-${name}`);
+    const isTestPanel = name === "hash" || name === "transaction";
+    panels.forEach(panel => panel.classList.toggle("active", panel === activePanel));
+    if (keysToggle) keysToggle.classList.toggle("active", name === "keys");
+    if (testsHeading) testsHeading.hidden = !isTestPanel;
+    if (scroll) activePanel?.scrollIntoView({ block: "start", behavior: "smooth" });
+  };
+
+  keysToggle?.addEventListener("click", () => {
+    const keysPanel = document.getElementById("dp-keys");
+    const isOpen = keysPanel?.classList.contains("active") ?? false;
+    if (isOpen) {
+      keysPanel?.classList.remove("active");
+      keysToggle.classList.remove("active");
+      if (testsHeading) testsHeading.hidden = true;
+    } else {
+      showPanel("keys");
+    }
+  });
+
+  setupPanelLinks.forEach(link => {
+    link.addEventListener("click", () => {
+      const panel = link.dataset["devPanel"];
+      if (panel) showPanel(panel, true);
+    });
+  });
+}
+
 // ── Theme ─────────────────────────────────────────────────────────────────────
 
 function initTheme(): void {
@@ -111,7 +147,7 @@ function initTheme(): void {
 
 function applyTheme(theme: string, toggle: HTMLButtonElement): void {
   document.documentElement.setAttribute("data-theme", theme);
-  toggle.textContent = theme === "dark" ? "dark" : "light";
+  toggle.textContent = theme === "dark" ? "switch to light mode" : "switch to dark mode";
 }
 
 function refreshSetupPanel(): void {
@@ -125,13 +161,64 @@ function onAddressChange(): void {
   // sync all address displays
   ["tx-addr", "receive-addr"].forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.textContent = lastAddress ?? "—";
+    if (el) el.textContent = lastAddress ?? EMPTY_ADDRESS_PLACEHOLDER;
   });
   const sendFrom = document.getElementById("send-from-addr");
-  if (sendFrom) sendFrom.textContent = lastAddress ?? "—";
+  if (sendFrom) sendFrom.textContent = lastAddress ?? EMPTY_ADDRESS_PLACEHOLDER;
   // QR codes
   renderQR("receive-qr", lastAddress);
   renderQR("tx-qr", lastAddress);
+  if (lastAddress) {
+    clearMissingKeyStatuses();
+  } else {
+    resetWalletOutputsForNoKey();
+  }
+}
+
+function clearMissingKeyStatuses(): void {
+  ["send-status", "receive-status", "tx-status"].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (
+      el.textContent?.includes("No key computed") ||
+      el.textContent?.includes("No sender key computed")
+    ) {
+      el.textContent = "";
+      el.className = "tx-status";
+    }
+  });
+}
+
+function resetWalletOutputsForNoKey(): void {
+  ["send-status", "receive-status", "tx-status"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.textContent = "No key computed - go to Keys tab first.";
+      el.className = "tx-status error";
+    }
+  });
+
+  ["send-balance", "receive-balance", "tx-balance", "send-sign-result", "tx-sign-result"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = "";
+  });
+
+  ["send-utxo-wrap", "tx-table-wrap"].forEach(id => {
+    const el = document.getElementById(id) as HTMLElement | null;
+    if (el) el.style.display = "none";
+  });
+
+  ["send-utxo-tbody", "tx-tbody"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = "";
+  });
+
+  const sendBtn = document.getElementById("send-broadcast-btn") as HTMLButtonElement | null;
+  if (sendBtn) sendBtn.disabled = true;
+
+  txUtxos = [];
+  sendUtxos = [];
+  sendBuiltTx = null;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -195,7 +282,7 @@ async function fetchSendUtxos(): Promise<void> {
   sendBuiltTx = null;
 
   if (!lastAddress) {
-    showTxError(statusEl, "No sender key computed - go to Keys tab first.");
+    resetWalletOutputsForNoKey();
     return;
   }
 
@@ -225,6 +312,7 @@ function renderSendUtxos(selectedTxid?: number): void {
   const showCount = document.getElementById("send-utxo-count") as HTMLElement | null;
   const resultEl = document.getElementById("send-sign-result") as HTMLElement | null;
   const sendBtn = document.getElementById("send-broadcast-btn") as HTMLButtonElement | null;
+  const valueIn = document.getElementById("send-value-in") as HTMLInputElement | null;
 
   if (!tbody || !showCount) return;
 
@@ -241,6 +329,13 @@ function renderSendUtxos(selectedTxid?: number): void {
       `<td>${u.txid}</td><td>${u.value}</td>` +
       `</tr>`
     ).join("");
+  bindUtxoRowSelection(tbody, "send-utxo", () => {
+    updateSendValueFromSelectedUtxo(valueIn);
+    if (resultEl) resultEl.innerHTML = "";
+    if (sendBtn) sendBtn.disabled = true;
+    sendBuiltTx = null;
+  });
+  updateSendValueFromSelectedUtxo(valueIn);
 
   showCount.textContent = sendShowAllUtxos
     ? `showing all ${sendUtxos.length}`
@@ -249,6 +344,14 @@ function renderSendUtxos(selectedTxid?: number): void {
   if (resultEl) resultEl.innerHTML = "";
   if (sendBtn) sendBtn.disabled = true;
   sendBuiltTx = null;
+}
+
+function updateSendValueFromSelectedUtxo(valueIn: HTMLInputElement | null): void {
+  if (!valueIn) return;
+  const selected = document.querySelector<HTMLInputElement>("input[name='send-utxo']:checked");
+  if (!selected) return;
+  const utxo = sendUtxos[parseInt(selected.value, 10)];
+  if (utxo?.value === 1) valueIn.value = "1";
 }
 
 function buildSendTransaction(): void {
@@ -369,7 +472,9 @@ async function broadcastSendTransaction(): Promise<void> {
       ? `${response.message}. TXID: ${response.txid}`
       : `Error: ${response.message ?? response.msg ?? "Unknown API response"}`;
     const statusHtml = response.status === "ok"
-      ? `${escapeHtml(response.message ?? "Transaction broadcasted successfully.")}<br />TXID: ${escapeHtml(String(response.txid ?? ""))}`
+      ? `${escapeHtml(response.message ?? "Transaction broadcasted successfully.")}<br />` +
+        `TXID: ${escapeHtml(String(response.txid ?? ""))} | ` +
+        `<a href="https://www.agamapoint.com/bbr/mempool.php?filter=mempool&page=1">obt_mempool</a>`
       : "";
     if (response.status === "ok") {
       statusEl.innerHTML = statusHtml;
@@ -412,7 +517,7 @@ async function fetchReceiveBalance(): Promise<void> {
   if (!statusEl || !balEl) return;
 
   if (!lastAddress) {
-    showTxError(statusEl, "No key computed - go to Keys tab first.");
+    resetWalletOutputsForNoKey();
     return;
   }
 
@@ -453,12 +558,11 @@ async function fetchBalance(
   if (!statusEl || !balEl || !tbody || !tableWrap) return;
 
   if (!lastAddress) {
-    statusEl.textContent = "No key computed — go to Keys tab first.";
-    statusEl.className = "tx-status error";
+    resetWalletOutputsForNoKey();
     return;
   }
 
-  statusEl.textContent = "Fetching…";
+  statusEl.textContent = "Fetching...";
   statusEl.className = "tx-status";
   balEl.textContent = "";
   tbody.innerHTML = "";
@@ -483,6 +587,10 @@ async function fetchBalance(
           `<td>${u.txid}</td><td>${u.value}</td>` +
           `</tr>`
         ).join("");
+      bindUtxoRowSelection(tbody, "tx-utxo", () => {
+        const resultEl = document.getElementById("tx-sign-result");
+        if (resultEl) resultEl.innerHTML = "";
+      });
     } else {
       tbody.innerHTML = data.unspent_outputs.slice(0, 5)
         .map(u => `<tr><td>${u.txid}</td><td>${u.value}</td></tr>`).join("");
@@ -499,6 +607,17 @@ function renderBalanceSummary(el: HTMLElement, balance: number, utxoCount: numbe
     `<span class="tx-label">balance</span>` +
     `<span class="tx-big">${balance}</span>` +
     `<span class="tx-sub">in ${utxoCount} UTXOs</span>`;
+}
+
+function bindUtxoRowSelection(tbody: HTMLElement, radioName: string, onChange?: () => void): void {
+  tbody.querySelectorAll<HTMLTableRowElement>("tr").forEach(row => {
+    const radio = row.querySelector<HTMLInputElement>(`input[name='${radioName}']`);
+    radio?.addEventListener("change", () => onChange?.());
+    row.addEventListener("click", () => {
+      if (!radio || radio.checked) return;
+      radio.click();
+    });
+  });
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -557,7 +676,7 @@ function initKeys(): void {
     const raw = inp.value.trim();
 
     if (raw === "") {
-      outPt.textContent = "—"; outPt.className = "result-value placeholder";
+      outPt.textContent = "*"; outPt.className = "result-value placeholder";
       outHx.textContent = "";
       lastAddress = null; onAddressChange(); return;
     }
@@ -570,14 +689,14 @@ function initKeys(): void {
     }
     if (slider && k >= 1 && k <= 251) slider.value = String(k);
     if (k === 0) {
-      outPt.textContent = "∞"; outPt.className = "result-value";
+      outPt.textContent = "INF"; outPt.className = "result-value";
       outHx.textContent = "";
       lastAddress = null; onAddressChange(); return;
     }
 
     const point = scalar_mult(k, ECC_PARAMS.G);
     if (point === null) {
-      outPt.textContent = "∞ (point at infinity)"; outPt.className = "result-value";
+      outPt.textContent = "INF (point at infinity)"; outPt.className = "result-value";
       outHx.textContent = "";
       lastAddress = null;
     } else {
@@ -607,7 +726,7 @@ function initHash(): void {
   inp.addEventListener("input", () => {
     const raw = inp.value;
     if (raw === "") {
-      out.textContent = "—"; out.className = "result-value placeholder"; return;
+      out.textContent = "*"; out.className = "result-value placeholder"; return;
     }
     out.textContent = `RAW: [${ASH24(raw)}]  |  HEX: ${hex24(ASH24(raw))}`;
     out.className = "result-value hash-result";
@@ -753,7 +872,7 @@ function escapeHtml(value: string): string {
 document.addEventListener("DOMContentLoaded", () => {
   initTheme();
   initTabGroup(".action-tab-btn", "ap-");
-  initTabGroup(".dev-tab-btn",    "dp-");
+  initDevPanels();
   initKeys();
   initHash();
   initTransaction();
@@ -763,6 +882,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const info = document.getElementById("curve-info");
   if (info) {
     const { p, a, b, G, n } = ECC_PARAMS;
-    info.textContent = `y² = x³ + ${a}x + ${b} (mod ${p}) | G=[${G}] | n=${n}`;
+    info.textContent = `y^2 = x^3 + ${a}x + ${b} (mod ${p}) | G=[${G}] | n=${n}`;
   }
+
+  if (!lastAddress) resetWalletOutputsForNoKey();
 });
