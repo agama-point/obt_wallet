@@ -1,0 +1,233 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ts_obt_wallet - ECC251</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/ts_obt.css?v=20260603c" />
+</head>
+<body>
+  <div class="card">
+    <div class="card-brand">
+      <div class="brand-title">One Byte Toy Wallet</div>
+      <div class="brand-subtitle">for educational and testing purposes only</div>
+    </div>
+    <!-- â•â• ACTION TAB BAR â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+    <div class="action-tab-bar" role="tablist" aria-label="Wallet actions">
+      <button class="action-tab-btn active" data-tab="receive" role="tab">Receive</button>
+      <button class="action-tab-btn" data-tab="send"    role="tab">Send</button>
+      <button class="action-tab-btn" data-tab="about"   role="tab">About</button>
+    </div>
+
+    <!-- â”€â”€ Send panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <section class="tab-panel" id="ap-send" role="tabpanel">
+      <p class="label">From</p>
+      <p class="tx-addr-display">
+        <span class="coord-label">0x</span><span id="send-from-addr" class="tx-addr-val">*</span>
+      </p>
+      <p class="label">
+        Recipient address
+        <button class="preset-link" type="button" data-send-recipient="0a4c">0a4c</button>
+        <button class="preset-link" type="button" data-send-recipient="7214">7214</button>
+        <button class="preset-link" type="button" data-send-recipient="83ca">83ca</button>
+      </p>
+      <div class="send-input-row">
+        <input type="text" id="send-addr-in" placeholder="e.g. 83ca" maxlength="5" inputmode="text" autocapitalize="none" autocomplete="off" />
+        <button class="icon-btn" id="send-qr-btn" title="Scan QR code">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+            <rect x="3" y="14" width="7" height="7"/>
+            <path d="M14 14h2v2h-2zM18 14h3M14 18h2M18 18h3M14 22h6"/>
+          </svg>
+        </button>
+      </div>
+      <p id="send-scan-hint" class="scan-hint" style="display:none;"></p>
+      <video id="send-video" class="qr-video" style="display:none;" playsinline muted></video>
+      <div class="send-value-row">
+        <label>
+          <span class="label">Value</span>
+          <input type="number" id="send-value-in" placeholder="3" min="1" inputmode="numeric" />
+        </label>
+        <button class="action-btn soft-btn" id="send-utxo-btn">GET UTXO</button>
+      </div>
+      <div id="send-balance" class="tx-balance-block compact-balance"></div>
+      <div id="send-utxo-wrap" class="tx-table-wrap" style="display:none;">
+        <div class="send-utxo-head">
+          <p class="label">Unspent outputs</p>
+          <label class="send-utxo-toggle">
+            <span id="send-utxo-count" class="muted"></span>
+            <input type="checkbox" id="send-show-all-utxos" />
+            <span>all</span>
+          </label>
+        </div>
+        <div class="table-scroll">
+          <table class="utxo-table tx-utxo-select-table">
+            <thead><tr><th></th><th>txid</th><th>value</th></tr></thead>
+            <tbody id="send-utxo-tbody"></tbody>
+          </table>
+        </div>
+        <div class="send-actions">
+          <button class="action-btn" id="send-build-btn">BUILD &amp; SIGN</button>
+          <button class="action-btn" id="send-broadcast-btn" disabled>SEND</button>
+        </div>
+      </div>
+      <div id="send-sign-result" class="tx-sign-result"></div>
+      <p id="send-status" class="tx-status error">No key computed - go to Keys tab first.</p>
+    </section>
+
+    <!-- â”€â”€ Receive panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <section class="tab-panel active" id="ap-receive" role="tabpanel">
+      <p class="label">Your address</p>
+      <p class="tx-addr-display">
+        <span class="coord-label">0x</span><span id="receive-addr" class="tx-addr-val">*</span>
+      </p>
+      <button class="action-btn soft-btn" id="receive-get-btn">GET balance</button>
+      <p id="receive-status" class="tx-status error">No key computed - go to Keys tab first.</p>
+      <div id="receive-balance" class="tx-balance-block compact-balance"></div>
+      <div id="receive-qr" class="receive-qr-box"></div>
+    </section>
+
+    <!-- â”€â”€ About panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <section class="tab-panel" id="ap-about" role="tabpanel">
+      <p class="label">About OBT Wallet</p>
+      <div class="about-copy">
+        <ul>
+          <li>OBT Wallet is made only for education, experiments, and playful testing.</li>
+          <li>It uses the toy ESS251 elliptic-curve system and the ASH24 toy hash function.</li>
+          <li>Transactions follow a simple P2PK model, where coins are locked to a public key and unlocked by a signature.</li>
+          <li>The blockchain backend is centralized, but the system keeps the transaction data transparent and easy to inspect.</li>
+        </ul>
+        <div class="about-meta" aria-label="Project information">
+          <div>obt_wallet | v0.20 | 2026/06</div>
+          <div>ess251.js v<span id="about-ess-ver"></span></div>
+          <div>ash24.js v<span id="about-ash-ver"></span></div>
+          <hr />
+          <div>
+            <a href="https://agamapoint.com/bitcoin/">agamapoint</a>
+            <span aria-hidden="true">|</span>
+            <a href="https://www.agamapoint.com/bbr/">bbr</a>
+            <span aria-hidden="true">|</span>
+            <a href="https://github.com/agama-point/obt_app">obt</a>
+          </div>
+          <a class="about-github-link" href="https://github.com/agama-point/obt_wallet" aria-label="GitHub repository agama-point/obt_wallet">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M12 2C6.48 2 2 6.58 2 12.26c0 4.52 2.87 8.36 6.84 9.72.5.09.68-.22.68-.5v-1.75c-2.78.62-3.37-1.37-3.37-1.37-.45-1.18-1.11-1.5-1.11-1.5-.91-.64.07-.63.07-.63 1 .07 1.53 1.06 1.53 1.06.89 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.36-2.22-.26-4.55-1.14-4.55-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05A9.35 9.35 0 0 1 12 6.98c.85 0 1.71.12 2.51.34 1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.8-4.57 5.06.36.32.68.95.68 1.92v2.85c0 .28.18.59.69.49A10.25 10.25 0 0 0 22 12.26C22 6.58 17.52 2 12 2Z" />
+            </svg>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- â•â• DEV TAB BAR â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+    <div class="dev-toggle-bar" aria-label="Developer tools">
+      <button class="dev-tab-btn" id="keys-toggle" type="button">keys</button>
+    </div>
+
+    <!-- â”€â”€ Keys panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <section class="tab-panel" id="dp-keys" role="tabpanel">
+      <p class="label">Scalar k</p>
+      <input type="number" id="keys-inp" placeholder="1" min="0" inputmode="numeric" autofocus />
+      <p class="curve-info" id="curve-info"></p>
+      <input type="range" id="keys-slider" class="key-slider" min="1" max="251" value="1" aria-label="Scalar k slider" />
+      <div class="divider">k * G</div>
+      <p class="key-warning">Warning:<br /> anyone who sees your private key can control your funds.</p>
+      <p class="label">Public key point</p>
+      <div class="key-result-row">
+        <span id="keys-point" class="result-value placeholder">*</span>
+        <span id="keys-hex"   class="result-hex"></span>
+      </div>
+      <div class="key-cache-row">
+        <button class="action-btn mini-btn soft-btn" id="keys-save-btn">SAVE</button>
+        <button class="action-btn mini-btn soft-btn" id="keys-load-btn">LOAD</button>
+        <button class="action-btn mini-btn soft-btn" id="keys-clear-btn">CLEAR</button>
+        <span id="keys-cache-status" class="key-cache-status"></span>
+      </div>
+    </section>
+
+    <div class="dev-tests-heading" id="dev-tests-heading" hidden>tests</div>
+
+    <!-- â”€â”€ Hash panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <section class="tab-panel" id="dp-hash" role="tabpanel">
+      <p class="label">Input string</p>
+      <input type="text" id="hash-inp" placeholder="e.g. 123test" />
+      <div class="divider">ash24</div>
+      <p class="label">Digest</p>
+      <span id="hash-out" class="result-value placeholder">*</span>
+    </section>
+
+    <!-- â”€â”€ Transaction panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <section class="tab-panel" id="dp-transaction" role="tabpanel">
+      <div class="tx-top-row">
+        <div class="tx-top-left">
+          <p class="label">Address</p>
+          <p class="tx-addr-display">
+            <span class="coord-label">0x</span><span id="tx-addr" class="tx-addr-val">*</span>
+          </p>
+          <button class="action-btn soft-btn" id="tx-get-btn">GET balance</button>
+        </div>
+        <div class="tx-qr-wrap">
+          <div id="tx-qr" class="tx-qr-box"></div>
+        </div>
+      </div>
+      <p id="tx-status" class="tx-status error">No key computed - go to Keys tab first.</p>
+      <div id="tx-balance" class="tx-balance-block"></div>
+      <div id="tx-table-wrap" class="tx-table-wrap" style="display:none;">
+        <p class="label" style="margin-bottom:0.5rem;">Unspent outputs <span class="muted">(first 5)</span></p>
+        <div class="table-scroll">
+          <table class="utxo-table tx-utxo-select-table">
+            <thead><tr><th></th><th>txid</th><th>value</th></tr></thead>
+            <tbody id="tx-tbody"></tbody>
+          </table>
+        </div>
+        <div class="tx-builder">
+          <label>
+            <span class="label">Recipient</span>
+            <input type="text" id="tx-recipient-in" placeholder="83ca" maxlength="4" inputmode="text" autocapitalize="none" autocomplete="off" />
+          </label>
+          <label>
+            <span class="label">Value</span>
+            <input type="number" id="tx-value-in" placeholder="3" min="1" inputmode="numeric" />
+          </label>
+          <button class="action-btn" id="tx-build-btn">BUILD &amp; SIGN</button>
+        </div>
+        <div id="tx-sign-result" class="tx-sign-result"></div>
+      </div>
+    </section>
+
+    <div class="hint">
+      <button class="setup-toggle" id="setup-toggle" type="button" title="Setup" aria-label="Setup">&#9881;</button>
+      <div>SETUP/info</div>
+    </div>
+    <div class="setup-panel" id="setup-panel" hidden>
+      <div class="setup-line"><button class="theme-toggle" id="toggle" type="button">switch to dark mode</button></div>
+      <div class="setup-line">cached key <span id="setup-key-cache">none</span></div>
+      <div class="setup-line"><a href="https://www.agamapoint.com/bbr/mempool.php?filter=mempool&page=1">obt_mempool</a></div>
+      <div class="setup-tests">
+        <div class="setup-tests-label">test:</div>
+        <button class="setup-link" type="button" data-dev-panel="hash">hash ASH24</button>
+        <button class="setup-link" type="button" data-dev-panel="transaction">transaction create</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="page-footer" aria-label="Project links">
+    <a href="https://agamapoint.com/bitcoin/">(c) Agama Point Academy</a>
+  </footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="js/ess251.js?v=20260601n"></script>
+  <script src="js/ash24.js?v=20260601n"></script>
+  <script src="js/jsQR.min.js?v=20260601n"></script>
+  <script src="js/qr_scan.js?v=20260601n"></script>
+  <script src="js/api_client.js?v=20260601n"></script>
+  <script src="js/key_cache.js?v=20260601n"></script>
+  <script src="js/ts_obt_wallet.js?v=20260603b"></script>
+  <script>
+    document.getElementById("about-ess-ver").textContent = window.ESS251_VER ?? "";
+    document.getElementById("about-ash-ver").textContent = window.ASH24_VER  ?? "";
+  </script>
+</body>
+</html>
